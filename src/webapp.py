@@ -2,6 +2,10 @@
 import os
 import json
 import uuid
+import time
+import md5
+import urlparse
+import requests
 
 import tornado.ioloop
 import tornado.web
@@ -12,10 +16,19 @@ tornado.options.define('favicon', default='static/favicon.ico', help='Path to fa
 tornado.options.define('static_path', default='static/', help='Path static items')
 tornado.options.define('port', default=8888, help='Port to run webservice')
 tornado.options.define('config', default='server.conf', help='Config file location')
+tornado.options.define('mcash_callback_uri', default=None, help='Callback URI for mcash')
+tornado.options.define('mcash_endpoint', default='https://mcashtestbed.appspot.com/merchant/v1/', help='API to call')
+# probably better to set in at once like mcash headers as a string
+tornado.options.define('mcash_merchant',  help='X-Mcash-Merchant')
+tornado.options.define('mcash_user', help='X-Mcash-User')
+tornado.options.define('mcash_secret', help='Authorization header')
+tornado.options.define('mcash_token', help='X-Testbed-Token')
 
 JSON_CONTENT = 'application/vnd.api+json'
+ORDER_EXPIRES_SEC = 600
 
 shops = {}
+shortlinks = {}
 
 class ProductHandler(tornado.web.RequestHandler):
     def get(self, shopid):
@@ -50,6 +63,7 @@ class ProductHandler(tornado.web.RequestHandler):
             try:
                 price = self._validate_content(shopid)
                 if price > 0:
+                    self._issue_shortlink()
                     self.write(str(price))
                 else:
                     raise tornado.web.HTTPError(400)
@@ -82,6 +96,29 @@ class ProductHandler(tornado.web.RequestHandler):
             return price
         except Exception:
             return -1
+
+    def _issue_shortlink(self):
+        unique_order = md5.new(self.request.body).hexdigest()
+        payment_cookie = self.get_cookie(unique_order, '')
+        if not payment_cookie:
+            headers = {}
+            O = tornado.options.options
+            headers['X-Mcash-Merchant'] = O.mcash_merchant
+            headers['X-Mcash-User'] = O.mcash_user
+            headers['Authorization'] = O.mcash_secret
+            headers['X-Testbed-Token'] = O.mcash_token
+
+            base = urlparse.urlparse(O.mcash_callback_uri or self.request.full_url())
+            uri = '%s://%s/%s/%s/' % (base.scheme, base.netloc, 'api/callback', unique_order)
+            data = {'callback_uri': uri}
+            r = requests.post(O.mcash_endpoint + 'shortlink/', headers=headers, data=data)
+            if r.ok:
+                now = int(time.time())
+                shortlinks[unique_order] = {'id': r.json()['id'], 'issued': now}
+                self.set_cookie(unique_order, str(now), expires=now + ORDER_EXPIRES_SEC)
+            else:
+                raise tornado.web.HTTPError(500)
+        return unique_order
 
     def _check_header(self, key, value=None):
         return key in self.request.headers and self.request.headers.get(key).lower() == (value or JSON_CONTENT).lower()
