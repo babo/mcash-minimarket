@@ -54,7 +54,11 @@ class ProductHandler(tornado.web.RequestHandler):
             raise tornado.web.HTTPError(404)
         if self._check_header('Content-Type') and self._check_header('Accept'):
             self.set_header('Content-Type', JSON_CONTENT)
-            self.write(shopid)
+            try:
+                json.loads(self.request.body)
+                self.write(self.request.body)
+            except ValueError:
+                raise tornado.web.HTTPError(400)
         else:
             raise tornado.web.HTTPError(406)
 
