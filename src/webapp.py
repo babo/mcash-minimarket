@@ -41,7 +41,7 @@ class ProductHandler(tornado.web.RequestHandler):
                         {'id': 28, 'name': '28 cm', 'price': -5},
                         {'id': 32, 'name': '32 cm', 'price': 0},
                         {'id': 36, 'name': '36 cm', 'price': 5}
-                        ]
+                    ]
                 }
             cache[shopid] = json.dumps(inventory)
         self.set_header('Content-Type', JSON_CONTENT)
@@ -55,12 +55,40 @@ class ProductHandler(tornado.web.RequestHandler):
         if self._check_header('Content-Type') and self._check_header('Accept'):
             self.set_header('Content-Type', JSON_CONTENT)
             try:
-                json.loads(self.request.body)
-                self.write(self.request.body)
+                price = self.validate_content(shopid)
+                if price > 0:
+                    self.write(str(price))
+                else:
+                    raise tornado.web.HTTPError(400)
             except ValueError:
                 raise tornado.web.HTTPError(400)
         else:
             raise tornado.web.HTTPError(406)
+
+    def _validate_content(self, shopid):
+        content = json.loads(self.request.body)
+        try:
+            inventory = json.loads(cache[shopid])
+            pizzas = dict([(x['id'], x) for x in inventory['pizzas']])
+            sizes = dict([(x['id'], x) for x in inventory['sizes']])
+            toppings = dict([(x['id'], x) for x in inventory['toppings']])
+
+            if not isinstance(content, list):
+                return -1
+            price = 0
+            for piece in content:
+                if not isinstance(piece, dict):
+                    return -1
+                if piece['id'] not in pizzas or piece['size'] not in sizes:
+                    return -1
+                price += pizzas[piece['id']]['price']
+                price += sizes[piece['size']]['price']
+                if 'toppings' in piece:
+                    for t in piece['toppings']:
+                        price += toppings[t['id']]['price']
+            return price
+        except Exception:
+            return -1
 
     def _check_header(self, key, value=None):
         return key in self.request.headers and self.request.headers.get(key).lower() == (value or JSON_CONTENT).lower()
