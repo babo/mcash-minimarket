@@ -30,6 +30,13 @@ ORDER_EXPIRES_SEC = 600
 shops = {}
 shortlinks = {}
 
+class CallbackHandler(tornado.web.RequestHandler):
+    def post(self, unique_order):
+        print 'Callback', unique_order
+        if unique_order in shortlinks:
+            price = shortlinks[unique_order]['price']
+            del shortlinks[unique_order]
+
 class ProductHandler(tornado.web.RequestHandler):
     def get(self, shopid):
         if shopid not in shops:
@@ -63,7 +70,7 @@ class ProductHandler(tornado.web.RequestHandler):
             try:
                 price = self._validate_content(shopid)
                 if price > 0:
-                    self._issue_shortlink()
+                    self._issue_shortlink(price)
                     self.write(str(price))
                 else:
                     raise tornado.web.HTTPError(400)
@@ -97,7 +104,7 @@ class ProductHandler(tornado.web.RequestHandler):
         except Exception:
             return -1
 
-    def _issue_shortlink(self):
+    def _issue_shortlink(self, price):
         unique_order = md5.new(self.request.body).hexdigest()
         payment_cookie = self.get_cookie(unique_order, '')
         if not payment_cookie:
@@ -114,7 +121,7 @@ class ProductHandler(tornado.web.RequestHandler):
             r = requests.post(O.mcash_endpoint + 'shortlink/', headers=headers, data=data)
             if r.ok:
                 now = int(time.time())
-                shortlinks[unique_order] = {'id': r.json()['id'], 'issued': now}
+                shortlinks[unique_order] = {'id': r.json()['id'], 'price': price, 'issued': now}
                 self.set_cookie(unique_order, str(now), expires=now + ORDER_EXPIRES_SEC)
             else:
                 raise tornado.web.HTTPError(500)
@@ -130,7 +137,8 @@ def main():
         tornado.options.parse_config_file(options.config)
 
     handlers = [
-        (r'/api/products/([^/]+)/', ProductHandler)
+        (r'/api/products/([^/]+)/', ProductHandler),
+        (r'/api/callback/([^/]{16,32})/', CallbackHandler)
     ]
     settings = {
         'static_path': os.path.join(os.path.dirname(__file__), '..', options.static_path),
