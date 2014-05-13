@@ -11,19 +11,6 @@ import tornado.ioloop
 import tornado.web
 import tornado.options
 
-tornado.options.define('cookie_secret', default='sssecccc', help='Change this to a real secret')
-tornado.options.define('favicon', default='static/favicon.ico', help='Path to favicon.ico')
-tornado.options.define('static_path', default='static/', help='Path static items')
-tornado.options.define('port', default=8888, help='Port to run webservice')
-tornado.options.define('config', default='server.conf', help='Config file location')
-tornado.options.define('mcash_callback_uri', default=None, help='Callback URI for mcash')
-tornado.options.define('mcash_endpoint', default='https://mcashtestbed.appspot.com/merchant/v1/', help='API to call')
-# probably better to set in at once like mcash headers as a string
-tornado.options.define('mcash_merchant',  help='X-Mcash-Merchant')
-tornado.options.define('mcash_user', help='X-Mcash-User')
-tornado.options.define('mcash_secret', help='Authorization header')
-tornado.options.define('mcash_token', help='X-Testbed-Token')
-
 JSON_CONTENT = 'application/vnd.api+json'
 ORDER_EXPIRES_SEC = 600
 
@@ -130,7 +117,22 @@ class ProductHandler(tornado.web.RequestHandler):
     def _check_header(self, key, value=None):
         return key in self.request.headers and self.request.headers.get(key).lower() == (value or JSON_CONTENT).lower()
 
+def describe_config():
+    tornado.options.define('cookie_secret', default='sssecccc', help='Change this to a real secret')
+    tornado.options.define('favicon', default='static/favicon.ico', help='Path to favicon.ico')
+    tornado.options.define('static_path', default='static/', help='Path static items')
+    tornado.options.define('port', default=8888, help='Port to run webservice')
+    tornado.options.define('config', default='server.conf', help='Config file location')
+    tornado.options.define('mcash_callback_uri', default=None, help='Callback URI for mcash')
+    tornado.options.define('mcash_endpoint', default='https://mcashtestbed.appspot.com/merchant/v1/', help='API to call')
+    # probably better to set in at once like mcash headers as a string
+    tornado.options.define('mcash_merchant',  help='X-Mcash-Merchant')
+    tornado.options.define('mcash_user', help='X-Mcash-User')
+    tornado.options.define('mcash_secret', help='Authorization header')
+    tornado.options.define('mcash_token', help='X-Testbed-Token')
+
 def main():
+    describe_config()
     tornado.options.parse_command_line()
     options = tornado.options.options
     if os.path.exists(options.config):
