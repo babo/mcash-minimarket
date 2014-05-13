@@ -15,11 +15,11 @@ tornado.options.define('config', default='server.conf', help='Config file locati
 
 JSON_CONTENT = 'application/vnd.api+json'
 
-cache = {}
+shops = {}
 
 class ProductHandler(tornado.web.RequestHandler):
     def get(self, shopid):
-        if shopid not in cache:
+        if shopid not in shops:
             inventory = {'pizzas':
                     [   {'id': 1, 'name': 'Pizza lagano', 'price': 45},
                         {'id': 2, 'name': 'Pizza vegan', 'price': 50},
@@ -36,19 +36,19 @@ class ProductHandler(tornado.web.RequestHandler):
                         {'id': 36, 'name': '36 cm', 'price': 5}
                     ]
                 }
-            cache[shopid] = json.dumps(inventory)
+            shops[shopid] = json.dumps(inventory)
         self.set_header('Content-Type', JSON_CONTENT)
         if not self.get_cookie('user'):
             self.set_cookie('user', str(uuid.uuid1()))
-        self.write(cache[shopid])
+        self.write(shops[shopid])
 
     def post(self, shopid):
-        if shopid not in cache:
+        if shopid not in shops:
             raise tornado.web.HTTPError(404)
         if self._check_header('Content-Type') and self._check_header('Accept'):
             self.set_header('Content-Type', JSON_CONTENT)
             try:
-                price = self.validate_content(shopid)
+                price = self._validate_content(shopid)
                 if price > 0:
                     self.write(str(price))
                 else:
@@ -61,7 +61,7 @@ class ProductHandler(tornado.web.RequestHandler):
     def _validate_content(self, shopid):
         content = json.loads(self.request.body)
         try:
-            inventory = json.loads(cache[shopid])
+            inventory = json.loads(shops[shopid])
             pizzas = dict([(x['id'], x) for x in inventory['pizzas']])
             sizes = dict([(x['id'], x) for x in inventory['sizes']])
             toppings = dict([(x['id'], x) for x in inventory['toppings']])
