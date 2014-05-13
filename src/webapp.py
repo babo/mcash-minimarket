@@ -13,6 +13,8 @@ tornado.options.define('static_path', default='static/', help='Path static items
 tornado.options.define('port', default=8888, help='Port to run webservice')
 tornado.options.define('config', default='server.conf', help='Config file location')
 
+JSON_CONTENT = 'application/vnd.api+json'
+
 class MainHandler(tornado.web.RequestHandler):
     def get(self):
         self.write("Hello, world")
@@ -42,7 +44,7 @@ class ProductHandler(tornado.web.RequestHandler):
                         ]
                 }
             cache[shopid] = json.dumps(inventory)
-        self.set_header('Content-Type', 'application/vnd.api+json')
+        self.set_header('Content-Type', JSON_CONTENT)
         if not self.get_cookie('user'):
             self.set_cookie('user', str(uuid.uuid1()))
         self.write(cache[shopid])
@@ -50,8 +52,14 @@ class ProductHandler(tornado.web.RequestHandler):
     def post(self, shopid):
         if shopid not in cache:
             raise tornado.web.HTTPError(404)
-        self.set_header('Content-Type', 'application/vnd.api+json')
-        self.write(shopid)
+        if self._check_header('Content-Type') and self._check_header('Accept'):
+            self.set_header('Content-Type', JSON_CONTENT)
+            self.write(shopid)
+        else:
+            raise tornado.web.HTTPError(406)
+
+    def _check_header(self, key, value=None):
+        return key in self.request.headers and self.request.headers.get(key).lower() == (value or JSON_CONTENT).lower()
 
 def main():
     tornado.options.parse_command_line()
