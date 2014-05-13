@@ -15,13 +15,6 @@ tornado.options.define('config', default='server.conf', help='Config file locati
 
 JSON_CONTENT = 'application/vnd.api+json'
 
-class MainHandler(tornado.web.RequestHandler):
-    def get(self):
-        self.write("Hello, world")
-
-    def post(self):
-        pass
-
 cache = {}
 
 class ProductHandler(tornado.web.RequestHandler):
@@ -100,8 +93,7 @@ def main():
         tornado.options.parse_config_file(options.config)
 
     handlers = [
-        (r'/api/products/([^/]+)/', ProductHandler),
-        (r'/', MainHandler),
+        (r'/api/products/([^/]+)/', ProductHandler)
     ]
     settings = {
         'static_path': os.path.join(os.path.dirname(__file__), '..', options.static_path),
