@@ -190,6 +190,22 @@ class ProductHandler(tornado.web.RequestHandler):
     def _check_header(self, key, value=None):
         return key in self.request.headers and self.request.headers.get(key).lower() == (value or JSON_CONTENT).lower()
 
+@memoize_singleton
+def register_shortlink(request):
+    O = tornado.options.options
+    base = urlparse.urlparse(O.mcash_callback_uri or request.full_url())
+    uri = '%s://%s/%s/' % (base.scheme, base.netloc, 'api/callback')
+    data = {'callback_uri': uri}
+    if O.mcash_serial_number:
+        data['serial_number'] = O.mcash_serial_number
+    r = requests.post(O.mcash_endpoint + 'shortlink/', headers=mcash_headers(), data=data)
+    if r.ok:
+        shortlink_id = r.json()['id']
+        logging.info('Shortlink generated: %s' % shortlink_id)
+        return shortlink_id
+    else:
+        logging.error('Error creating a shortlink', exc_info=True)
+
 def describe_config():
     tornado.options.define('cookie_secret', default='sssecccc', help='Change this to a real secret')
     tornado.options.define('favicon', default='static/favicon.ico', help='Path to favicon.ico')
@@ -203,6 +219,7 @@ def describe_config():
     tornado.options.define('mcash_user', help='X-Mcash-User')
     tornado.options.define('mcash_secret', help='Authorization header')
     tornado.options.define('mcash_token', help='X-Testbed-Token')
+    tornado.options.define('mcash_serial_number', help='Optional serial number for shortlink generation')
 
 def main():
     describe_config()
