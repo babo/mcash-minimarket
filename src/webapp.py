@@ -3,6 +3,7 @@
     Minimal backend for an mcash powered store with unlimited supplies.
     Our main persona is a friendly pizza shop at the corner.
 """
+import functools
 import os
 import json
 import uuid
@@ -23,6 +24,21 @@ ORDER_EXPIRES_SEC = 600
 shops = {}
 shortlinks = {}
 
+def memoize_singleton(func):
+    cache = []
+
+    @functools.wraps(func)
+    def memoizer(*args, **kwargs):
+        if cache:
+            return cache[0]
+        rtv = func(*args, **kwargs)
+        if rtv is not None:
+            cache.append(rtv)
+        return rtv
+
+    return memoizer
+
+@memoize_singleton
 def mcash_headers():
     O = tornado.options.options
     headers = {}
