@@ -56,17 +56,17 @@ def base_url(request):
 @memoize_singleton
 def register_shortlink(request):
     O = tornado.options.options
-    data = {'callback_uri': '%s/api/callback/shortlink' % base_url(request)}
+    data = {'callback_uri': '%s/api/callback/shortlink/' % base_url(request)}
     if O.mcash_serial_number:
         data['serial_number'] = O.mcash_serial_number
 
     r = requests.post(O.mcash_endpoint + 'shortlink/', headers=mcash_headers(), data=data)
     if r.ok:
         shortlink_id = r.json()['id']
-        logging.info('Shortlink generated: %s' % shortlink_id)
+        logging.info('Shortlink generated: %s %s' % (data['callback_uri'], shortlink_id))
         return shortlink_id
     else:
-        logging.error('Error creating a shortlink', exc_info=True)
+        logging.error('Error creating a shortlink %s %s %s %s' % (r.status_code, r.url, r.headers, data), exc_info=True)
 
 class MessageBuffer(object):
     def __init__(self):
@@ -124,51 +124,50 @@ class PollHandler(tornado.web.RequestHandler):
             global_message_buffer.cancel_wait(self.unique_order, self.callback)
 
 class CallbackHandler(tornado.web.RequestHandler):
-    def post(self, from_mcash, unique_order):
-        logging.info('Callback arrived: %s %s' % (from_mcash, unique_order))
+    def post(self):
+        logging.info('Callback arrived: %s' % self.request.body)
+        try:
+            unique_order = json.loads(self.request.body)['object']['argstring']
+        except ValueError as error:
+            logging.error('Unexpected JSON in callback %s' % self.request.body)
+            raise tornado.web.HTTPError(400)
+
         if unique_order in transactions:
-            if from_mcash == 'shortlink':
-                amount = transactions[unique_order]['amount']
-                O = tornado.options.options
-                data = {}
-                data['amount'] = amount
-                data['currency'] = O.mcash_currency
-                data['callback_uri'] = '%sapi/callback/payment/%s' % (base_url(self.request), unique_order)
-                data['allow_credit'] = O.allow_credit
-                data['customer'] = transactions[unique_order]['user']
-                data['pos_id'] = transactions[unique_order]['shopid']
-                data['pos_tid'] = unique_order
-                data['action'] = 'auth'
-                data['text'] = transactions[unique_order]['shopid']
+            amount = transactions[unique_order]['amount']
+            O = tornado.options.options
+            data = {}
+            data['amount'] = amount
+            data['currency'] = O.mcash_currency
+            #data['callback_uri'] = '%sapi/callback/payment/%s' % (base_url(self.request), unique_order)
+            data['allow_credit'] = O.allow_credit
+            data['customer'] = transactions[unique_order]['user']
+            data['pos_id'] = transactions[unique_order]['shopid']
+            data['pos_tid'] = unique_order
+            data['action'] = 'auth'
+            data['text'] = transactions[unique_order]['shopid']
 
-                uri = '%spayment_request/' % O.mcash_endpoint
-                r1 = requests.post(uri, headers=mcash_headers(), data=data)
-                if r1.ok:
-                    transaction_id = r1.json()['id']
-                    transactions[unique_order]['transaction_id'] = transaction_id
-                    transactions[unique_order]['status'] = 1
-                    logging.info('payment request succeded: %s %s' % (unique_order, transaction_id))
+            uri = '%spayment_request/' % O.mcash_endpoint
+            r1 = requests.post(uri, headers=mcash_headers(), data=data)
+            if r1.ok:
+                transaction_id = r1.json()['id']
+                transactions[unique_order]['transaction_id'] = transaction_id
+                transactions[unique_order]['status'] = 1
+                logging.info('payment request succeded: %s %s' % (unique_order, transaction_id))
 
-                    r2 = requests.put('%s%s/' % transaction_id, data={'action': 'capture'}, headers=mcash_headers())
-                    if r2.ok:
-                        transactions[unique_order]['status'] = 4
-                        logging.info('payment capture succeded: %s %s' % (unique_order, transaction_id))
-                        global_message_buffer.payment_arrived(transaction_id)
-                        self.write('OK')
-                    else:
-                        transactions[unique_order]['status'] = 3
-                        global_message_buffer.payment_arrived(transaction_id)
-                        logging.error('payment capture failed: %s %s %s %s' % (r2.status_code, r2.reason, unique_order, transaction_id))
-                        raise tornado.web.HTTPError(500)
+                r2 = requests.put('%s%s/' % transaction_id, data={'action': 'capture'}, headers=mcash_headers())
+                if r2.ok:
+                    transactions[unique_order]['status'] = 4
+                    logging.info('payment capture succeded: %s %s' % (unique_order, transaction_id))
+                    global_message_buffer.payment_arrived(transaction_id)
+                    self.write('OK')
                 else:
-                    logging.error('payment request failed: %s %s %s' % (r1.status_code, r1.reason, data))
+                    # TODO check if the error is recoverable
+                    transactions[unique_order]['status'] = 3
+                    logging.error('payment capture failed: %s %s %s %s' % (r2.status_code, r2.reason, unique_order, transaction_id))
                     raise tornado.web.HTTPError(500)
-            elif from_mcash == 'status':
-                logging.info('Payment status %s %s %s' % (from_mcash, unique_order, self.request.body))
-                self.write('OK')
             else:
-                logging.error('Unkown callback %s %s' % (from_mcash, unique_order))
-                raise tornado.web.HTTPError(404)
+                logging.error('payment request failed: %s %s %s' % (r1.status_code, r1.reason, data))
+                raise tornado.web.HTTPError(500)
 
 class ProductHandler(tornado.web.RequestHandler):
     def get(self, shopid):
@@ -296,7 +295,8 @@ def main():
     handlers = [
         (r'/api/products/([^/]+)/', ProductHandler),
         (r'/api/poll/([^/]{16,32})/', PollHandler),
-        (r'/api/callback/(shortlink|status)/([^/]{16,32})/', CallbackHandler)
+        (r'/api/callback/shortlink/', CallbackHandler)
+        #(r'/api/callback/(shortlink|status)/([^/]{16,32})/', CallbackHandler)
     ]
     settings = {
         'static_path': os.path.join(os.path.dirname(__file__), '..', options.static_path),
