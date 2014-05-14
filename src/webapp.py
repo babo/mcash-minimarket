@@ -123,7 +123,7 @@ class PollHandler(tornado.web.RequestHandler):
         if hasattr(self, 'unique_order'):
             global_message_buffer.cancel_wait(self.unique_order, self.callback)
 
-class CallbackHandler(tornado.web.RequestHandler):
+class ShortlinkHandler(tornado.web.RequestHandler):
     def post(self):
         logging.info('Callback arrived: %s' % self.request.body)
         try:
@@ -296,7 +296,7 @@ def main():
     handlers = [
         (r'/api/products/([^/]+)/', ProductHandler),
         (r'/api/poll/([^/]{16,32})/', PollHandler),
-        (r'/api/callback/shortlink/', CallbackHandler)
+        (r'/api/callback/shortlink/', ShortlinkHandler)
         #(r'/api/callback/(shortlink|status)/([^/]{16,32})/', CallbackHandler)
     ]
     settings = {
