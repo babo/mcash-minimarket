@@ -140,8 +140,8 @@ class ProductHandler(tornado.web.RequestHandler):
                 }
             shops[shopid] = json.dumps(inventory)
         self.set_header('Content-Type', JSON_CONTENT)
-        if not self.get_cookie('user'):
-            self.set_cookie('user', str(uuid.uuid1()))
+        if not self.get_cookie('uuid'):
+            self.set_cookie('uuid', str(uuid.uuid1()))
         self.write(shops[shopid])
 
     def post(self, shopid):
@@ -149,16 +149,19 @@ class ProductHandler(tornado.web.RequestHandler):
             raise tornado.web.HTTPError(404)
         if self._check_header('Content-Type') and self._check_header('Accept'):
             self.set_header('Content-Type', JSON_CONTENT)
+            order = None
             try:
                 price = self._validate_content(shopid)
                 if price > 0:
-                    self._issue_shortlink(price)
-                    self.write(str(price))
-                else:
-                    raise tornado.web.HTTPError(400)
+                    shortlink_id = register_shortlink(request)
+                    order = self._generate_order(shopid, shortlink_id, price)
             except ValueError:
                 logging.error('Error in shortlink generation', exc_info=True)
+
+            if not order:
                 raise tornado.web.HTTPError(400)
+
+            self.write(order)
         else:
             logging.info('POST with invalid content')
             raise tornado.web.HTTPError(406)
@@ -188,6 +191,25 @@ class ProductHandler(tornado.web.RequestHandler):
         except Exception:
             logging.error('Error in content validation', exc_info=True)
             return -1
+
+    def _generate_order(self, shopid, shortlink_id, price):
+        user = self.get_cookie('uuid', None)
+        if user is None:        # set token only when needed
+            user = str(uuid.uuid1())
+            self.set_cookie('uuid', user)
+        unique_order = md5.new(user).update(shopid).update(self.request.body).hexdigest()
+
+        payment_cookie = self.get_cookie(unique_order, '')
+        if not payment_cookie:
+            now = int(time.time())
+            shortlinks[unique_order] = {'shopid': shopid, 'price': price, 'issued': now}
+            self.set_cookie(unique_order, str(now), expires=now + ORDER_EXPIRES_SEC)
+
+        order = {'id': unique_order,
+                'price': price,
+                'poll_uri': '%s/api/poll/%s/' % (base_url(self.request), unique_order),
+                'qrcode_url': tornado.options.options.mcash_qrcode % (shortlink_id, unique_order)}
+        return json.dumps(order)
 
     def _issue_shortlink(self, price):
         unique_order = md5.new(self.request.body).hexdigest()
@@ -224,6 +246,7 @@ def describe_config():
     tornado.options.define('mcash_secret', help='Authorization header')
     tornado.options.define('mcash_token', help='X-Testbed-Token')
     tornado.options.define('mcash_serial_number', help='Optional serial number for shortlink generation')
+    tornado.options.define('mcash_qrcode', default='https://api.mca.sh/shortlink/v1/qr_image/%s/%s', help='Should have %s marks for shortlink id and argument')
 
 def main():
     describe_config()
