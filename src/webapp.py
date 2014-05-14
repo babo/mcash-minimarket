@@ -43,7 +43,7 @@ class ProductHandler(tornado.web.RequestHandler):
             inventory = {'pizzas':
                     [   {'id': 1, 'name': 'Pizza lagano', 'price': 45},
                         {'id': 2, 'name': 'Pizza vegan', 'price': 50},
-                        {'id': 3, 'name': 'Pizza %s' % shopid, 'price': 55},
+                        {'id': 3, 'name': 'Pizza of the house', 'price': 55},
                     ],
                     'toppings': [
                         {'id': 1, 'name': 'garlic', 'price': 1},
