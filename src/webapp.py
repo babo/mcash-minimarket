@@ -123,6 +123,28 @@ class PollHandler(tornado.web.RequestHandler):
         if hasattr(self, 'unique_order'):
             global_message_buffer.cancel_wait(self.unique_order, self.callback)
 
+class PaymentHandler(tornado.web.RequestHandler):
+    def post(self, unique_order):
+        logging.info('Payment callback arrived: %s' % self.request.body)
+        try:
+            transaction_id = json.loads(self.request.body)['object']['tid']
+        except ValueError as error:
+            logging.error('Unexpected JSON in callback %s %s' % (error, self.request.body))
+            raise tornado.web.HTTPError(400)
+
+        if unique_order in transactions:
+            uri = '%spayment_request/%s/' % (tornado.options.options.mcash_endpoint, transaction_id)
+            response = requests.put(uri, data={'action': 'capture'}, headers=mcash_headers())
+            if response.ok:
+                transactions[unique_order]['status'] = 4
+                logging.info('payment capture succeded: %s %s' % (unique_order, transaction_id))
+                global_message_buffer.payment_arrived(transaction_id)
+            else:
+                # TODO check if the error is recoverable
+                transactions[unique_order]['status'] = 3
+                logging.error('payment capture failed: %s %s %s %s' % (response.status_code, response.content, unique_order, transaction_id))
+                raise tornado.web.HTTPError(500)
+
 class ShortlinkHandler(tornado.web.RequestHandler):
     def post(self):
         logging.info('Shortlink callback arrived: %s' % self.request.body)
@@ -285,8 +307,8 @@ def main():
     handlers = [
         (r'/api/products/([^/]+)/', ProductHandler),
         (r'/api/poll/([^/]{16,32})/', PollHandler),
-        (r'/api/callback/shortlink/', ShortlinkHandler)
-        #(r'/api/callback/(shortlink|status)/([^/]{16,32})/', CallbackHandler)
+        (r'/api/callback/shortlink/', ShortlinkHandler),
+        (r'/api/callback/payment/([^/]{16,32})/', PaymentHandler)
     ]
     settings = {
         'static_path': os.path.join(os.path.dirname(__file__), '..', options.static_path),
