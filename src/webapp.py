@@ -78,7 +78,7 @@ class PollHandler(tornado.web.RequestHandler):
 
 class CallbackHandler(tornado.web.RequestHandler):
     def post(self, unique_order):
-        logging.info('Callback arrived: %s' unique_order)
+        logging.info('Callback arrived: %s' % unique_order)
         if unique_order in shortlinks:
             price = shortlinks[unique_order]['price']
             del shortlinks[unique_order]
@@ -121,8 +121,10 @@ class ProductHandler(tornado.web.RequestHandler):
                 else:
                     raise tornado.web.HTTPError(400)
             except ValueError:
+                logging.error('Error in shortlink generation', exc_info=True)
                 raise tornado.web.HTTPError(400)
         else:
+            logging.info('POST with invalid content')
             raise tornado.web.HTTPError(406)
 
     def _validate_content(self, shopid):
@@ -148,6 +150,7 @@ class ProductHandler(tornado.web.RequestHandler):
                         price += toppings[t['id']]['price']
             return price
         except Exception:
+            logging.error('Error in content validation', exc_info=True)
             return -1
 
     def _issue_shortlink(self, price):
@@ -164,6 +167,7 @@ class ProductHandler(tornado.web.RequestHandler):
                 shortlinks[unique_order] = {'id': r.json()['id'], 'price': price, 'issued': now}
                 self.set_cookie(unique_order, str(now), expires=now + ORDER_EXPIRES_SEC)
             else:
+                logging.error('Error creating a shortlink', exc_info=True)
                 raise tornado.web.HTTPError(500)
         return unique_order
 
