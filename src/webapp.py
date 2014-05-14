@@ -22,7 +22,7 @@ JSON_CONTENT = 'application/vnd.api+json'
 ORDER_EXPIRES_SEC = 600
 
 shops = {}
-shortlinks = {}
+transactions = {}
 
 def memoize_singleton(func):
     cache = []
@@ -119,40 +119,44 @@ class PollHandler(tornado.web.RequestHandler):
 class CallbackHandler(tornado.web.RequestHandler):
     def post(self, from_mcash, unique_order):
         logging.info('Callback arrived: %s %s' % (from_mcash, unique_order))
-        if unique_order in shortlinks:
+        if unique_order in transactions:
             if from_mcash == 'shortlink':
-                amount = shortlinks[unique_order]['amount']
+                amount = transactions[unique_order]['amount']
                 O = tornado.options.options
                 data = {}
                 data['amount'] = amount
                 data['currency'] = O.mcash_currency
                 data['callback_uri'] = '%sapi/callback/payment/%s' % (base_url(self.request), unique_order)
                 data['allow_credit'] = O.allow_credit
-                data['customer'] = shortlinks[unique_order]['user']
-                data['pos_id'] = shortlinks[unique_order]['shopid']
+                data['customer'] = transactions[unique_order]['user']
+                data['pos_id'] = transactions[unique_order]['shopid']
                 data['pos_tid'] = unique_order
                 data['action'] = 'auth'
-                data['text'] = shortlinks[unique_order]['shopid']
+                data['text'] = transactions[unique_order]['shopid']
 
                 uri = '%spayment_request/' % O.mcash_endpoint
                 r1 = requests.post(uri, headers=mcash_headers(), data=data)
                 if r1.ok:
                     transaction_id = r1.json()['id']
+                    transactions[unique_order]['transaction_id'] = transaction_id
+                    transactions[unique_order]['status'] = 1
                     logging.info('payment request succeded: %s %s' % (unique_order, transaction_id))
 
                     r2 = requests.put('%s%s/' % transaction_id, data={'action': 'capture'}, headers=mcash_headers())
                     if r2.ok:
+                        transactions[unique_order]['status'] = 4
                         logging.info('payment capture succeded: %s %s' % (unique_order, transaction_id))
                         global_message_buffer.payment_arrived(transaction_id)
                         self.write('OK')
                     else:
+                        transactions[unique_order]['status'] = 3
                         logging.error('payment capture failed: %s %s %s %s' % (r2.status_code, r2.reason, unique_order, transaction_id))
                         raise tornado.web.HTTPError(500)
                 else:
                     logging.error('payment request failed: %s %s %s' % (r1.status_code, r1.reason, data))
                     raise tornado.web.HTTPError(500)
             elif from_mcash == 'status':
-                logging.info('Payment status %s %s' % (from_mcash, unique_order, self.request.body))
+                logging.info('Payment status %s %s %s' % (from_mcash, unique_order, self.request.body))
                 self.write('OK')
             else:
                 logging.error('Unkown callback %s %s' % (from_mcash, unique_order))
@@ -241,7 +245,7 @@ class ProductHandler(tornado.web.RequestHandler):
         payment_cookie = self.get_cookie(unique_order, '')
         if not payment_cookie:
             now = int(time.time())
-            shortlinks[unique_order] = {'shopid': shopid, 'amount': amount, 'issued': now, 'user': user}
+            transactions[unique_order] = {'shopid': shopid, 'amount': amount, 'issued': now, 'user': user, 'status': 1}
             self.set_cookie(unique_order, str(now), expires=now + ORDER_EXPIRES_SEC)
 
         order = {'id': unique_order,
