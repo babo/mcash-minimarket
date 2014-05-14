@@ -1,4 +1,8 @@
 #!/usr/bin/env python
+"""
+    Minimal backend for an mcash powered store with unlimited supplies.
+    Our main persona is a friendly pizza shop at the corner.
+"""
 import os
 import json
 import uuid
