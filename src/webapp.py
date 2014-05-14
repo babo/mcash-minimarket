@@ -98,6 +98,10 @@ class MessageBuffer(object):
 global_message_buffer = MessageBuffer()
 
 class PollHandler(tornado.web.RequestHandler):
+    def __init__(self, *args, **kwargs):
+        self.unique_order = None
+        super(PollHandler, self).__init__(*args, **kwargs)
+
     @tornado.web.asynchronous
     def post(self, unique_order):
         self.unique_order = unique_order
@@ -153,7 +157,7 @@ class ProductHandler(tornado.web.RequestHandler):
             try:
                 price = self._validate_content(shopid)
                 if price > 0:
-                    shortlink_id = register_shortlink(request)
+                    shortlink_id = register_shortlink(self.request)
                     order = self._generate_order(shopid, shortlink_id, price)
             except ValueError:
                 logging.error('Error in shortlink generation', exc_info=True)
