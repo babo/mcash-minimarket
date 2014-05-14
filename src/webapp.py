@@ -248,7 +248,10 @@ class ProductHandler(tornado.web.RequestHandler):
         if user is None:        # set token only when needed
             user = str(uuid.uuid1())
             self.set_cookie('uuid', user)
-        unique_order = md5.new(user).update(shopid).update(self.request.body).hexdigest()
+        h = md5.new(user)
+        h.update(shopid)
+        h.update(self.request.body)
+        unique_order = h.hexdigest()
 
         payment_cookie = self.get_cookie(unique_order, '')
         if not payment_cookie:
