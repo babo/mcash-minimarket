@@ -125,7 +125,7 @@ class PollHandler(tornado.web.RequestHandler):
 
 class ShortlinkHandler(tornado.web.RequestHandler):
     def post(self):
-        logging.info('Callback arrived: %s' % self.request.body)
+        logging.info('Shortlink callback arrived: %s' % self.request.body)
         try:
             customer = json.loads(self.request.body)['object']['id']
             unique_order = json.loads(self.request.body)['object']['argstring']
@@ -139,7 +139,7 @@ class ShortlinkHandler(tornado.web.RequestHandler):
             data = {}
             data['amount'] = amount
             data['currency'] = O.mcash_currency
-            #data['callback_uri'] = '%sapi/callback/payment/%s' % (base_url(self.request), unique_order)
+            data['callback_uri'] = '%s/api/callback/payment/%s/' % (base_url(self.request), unique_order)
             data['allow_credit'] = O.allow_credit
             data['customer'] = customer
             data['pos_id'] = transactions[unique_order]['shopid']
@@ -148,26 +148,15 @@ class ShortlinkHandler(tornado.web.RequestHandler):
             data['text'] = transactions[unique_order]['shopid']
 
             uri = '%spayment_request/' % O.mcash_endpoint
-            r1 = requests.post(uri, headers=mcash_headers(), data=data)
-            if r1.ok:
-                transaction_id = r1.json()['id']
+            response = requests.post(uri, headers=mcash_headers(), data=data)
+            if response.ok:
+                transaction_id = response.json()['id']
                 transactions[unique_order]['transaction_id'] = transaction_id
                 transactions[unique_order]['status'] = 1
-                logging.info('payment request succeded: %s %s' % (unique_order, transaction_id))
-
-                r2 = requests.put('%s%s/' % (uri, transaction_id), data={'action': 'capture'}, headers=mcash_headers())
-                if r2.ok:
-                    transactions[unique_order]['status'] = 4
-                    logging.info('payment capture succeded: %s %s' % (unique_order, transaction_id))
-                    global_message_buffer.payment_arrived(transaction_id)
-                    self.write('OK')
-                else:
-                    # TODO check if the error is recoverable
-                    transactions[unique_order]['status'] = 3
-                    logging.error('payment capture failed: %s %s %s %s' % (r2.status_code, r2.content, unique_order, transaction_id))
-                    raise tornado.web.HTTPError(500)
+                logging.info('payment authorization request succeded: %s %s %s' % (unique_order, transaction_id, data['callback_uri']))
+                self.write('OK')
             else:
-                logging.error('payment request failed: %s %s %s %s %s' % (r1.status_code, r1.content, r1.url, mcash_headers(), data))
+                logging.error('payment authorization request failed: %s %s %s %s %s' % (response.status_code, response.content, response.url, mcash_headers(), data))
                 raise tornado.web.HTTPError(500)
 
 class ProductHandler(tornado.web.RequestHandler):
