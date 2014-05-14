@@ -133,7 +133,7 @@ def describe_config():
     tornado.options.define('mcash_callback_uri', default=None, help='Callback URI for mcash')
     tornado.options.define('mcash_endpoint', default='https://mcashtestbed.appspot.com/merchant/v1/', help='API to call')
     # probably better to set in at once like mcash headers as a string
-    tornado.options.define('mcash_merchant',  help='X-Mcash-Merchant')
+    tornado.options.define('mcash_merchant', help='X-Mcash-Merchant')
     tornado.options.define('mcash_user', help='X-Mcash-User')
     tornado.options.define('mcash_secret', help='Authorization header')
     tornado.options.define('mcash_token', help='X-Testbed-Token')
@@ -160,5 +160,5 @@ def main():
     application.listen(options.port)
     tornado.ioloop.IOLoop.instance().start()
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
