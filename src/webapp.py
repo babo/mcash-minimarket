@@ -48,6 +48,26 @@ def mcash_headers():
     headers['X-Testbed-Token'] = O.mcash_token
     return headers
 
+@memoize_singleton
+def base_url(request):
+    base = urlparse.urlparse(tornado.options.options.mcash_callback_uri or request.full_url())
+    return '%s://%s/%s/' % (base.scheme, base.netloc, 'api/callback')
+
+@memoize_singleton
+def register_shortlink(request):
+    O = tornado.options.options
+    data = {'callback_uri': '%s/api/callback' % base_url(request)}
+    if O.mcash_serial_number:
+        data['serial_number'] = O.mcash_serial_number
+
+    r = requests.post(O.mcash_endpoint + 'shortlink/', headers=mcash_headers(), data=data)
+    if r.ok:
+        shortlink_id = r.json()['id']
+        logging.info('Shortlink generated: %s' % shortlink_id)
+        return shortlink_id
+    else:
+        logging.error('Error creating a shortlink', exc_info=True)
+
 class MessageBuffer(object):
     def __init__(self):
         self.waiters = {}
@@ -189,22 +209,6 @@ class ProductHandler(tornado.web.RequestHandler):
 
     def _check_header(self, key, value=None):
         return key in self.request.headers and self.request.headers.get(key).lower() == (value or JSON_CONTENT).lower()
-
-@memoize_singleton
-def register_shortlink(request):
-    O = tornado.options.options
-    base = urlparse.urlparse(O.mcash_callback_uri or request.full_url())
-    uri = '%s://%s/%s/' % (base.scheme, base.netloc, 'api/callback')
-    data = {'callback_uri': uri}
-    if O.mcash_serial_number:
-        data['serial_number'] = O.mcash_serial_number
-    r = requests.post(O.mcash_endpoint + 'shortlink/', headers=mcash_headers(), data=data)
-    if r.ok:
-        shortlink_id = r.json()['id']
-        logging.info('Shortlink generated: %s' % shortlink_id)
-        return shortlink_id
-    else:
-        logging.error('Error creating a shortlink', exc_info=True)
 
 def describe_config():
     tornado.options.define('cookie_secret', default='sssecccc', help='Change this to a real secret')
