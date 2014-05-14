@@ -215,24 +215,6 @@ class ProductHandler(tornado.web.RequestHandler):
                 'qrcode_url': tornado.options.options.mcash_qrcode % (shortlink_id, unique_order)}
         return json.dumps(order)
 
-    def _issue_shortlink(self, price):
-        unique_order = md5.new(self.request.body).hexdigest()
-        payment_cookie = self.get_cookie(unique_order, '')
-        if not payment_cookie:
-            O = tornado.options.options
-            base = urlparse.urlparse(O.mcash_callback_uri or self.request.full_url())
-            uri = '%s://%s/%s/%s/' % (base.scheme, base.netloc, 'api/callback', unique_order)
-            data = {'callback_uri': uri}
-            r = requests.post(O.mcash_endpoint + 'shortlink/', headers=mcash_headers(), data=data)
-            if r.ok:
-                now = int(time.time())
-                shortlinks[unique_order] = {'id': r.json()['id'], 'price': price, 'issued': now}
-                self.set_cookie(unique_order, str(now), expires=now + ORDER_EXPIRES_SEC)
-            else:
-                logging.error('Error creating a shortlink', exc_info=True)
-                raise tornado.web.HTTPError(500)
-        return unique_order
-
     def _check_header(self, key, value=None):
         return key in self.request.headers and self.request.headers.get(key).lower() == (value or JSON_CONTENT).lower()
 
