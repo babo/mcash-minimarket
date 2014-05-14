@@ -118,9 +118,12 @@ class PollHandler(tornado.web.RequestHandler):
 
 class CallbackHandler(tornado.web.RequestHandler):
     def post(self, unique_order):
+        logging.info('Huh arrived: %s' % unique_order)
+        self.write('OK')
         logging.info('Callback arrived: %s' % unique_order)
         if unique_order in shortlinks:
-            price = shortlinks[unique_order]['price']
+            amount = shortlinks[unique_order]['amount']
+            r = requests.post(O.mcash_endpoint + 'payment_request/', headers=mcash_headers(), data=data)
             del shortlinks[unique_order]
 
 class ProductHandler(tornado.web.RequestHandler):
@@ -155,10 +158,10 @@ class ProductHandler(tornado.web.RequestHandler):
             self.set_header('Content-Type', JSON_CONTENT)
             order = None
             try:
-                price = self._validate_content(shopid)
-                if price > 0:
+                amount = self._validate_content(shopid)
+                if amount > 0:
                     shortlink_id = register_shortlink(self.request)
-                    order = self._generate_order(shopid, shortlink_id, price)
+                    order = self._generate_order(shopid, shortlink_id, amount)
             except ValueError:
                 logging.error('Error in shortlink generation', exc_info=True)
 
@@ -180,23 +183,23 @@ class ProductHandler(tornado.web.RequestHandler):
 
             if not isinstance(content, list):
                 return -1
-            price = 0
+            amount = 0
             for piece in content:
                 if not isinstance(piece, dict):
                     return -1
                 if piece['id'] not in pizzas or piece['size'] not in sizes:
                     return -1
-                price += pizzas[piece['id']]['price']
-                price += sizes[piece['size']]['price']
+                amount += pizzas[piece['id']]['price']
+                amount += sizes[piece['size']]['price']
                 if 'toppings' in piece:
                     for t in piece['toppings']:
-                        price += toppings[t['id']]['price']
-            return price
+                        amount += toppings[t['id']]['price']
+            return amount
         except Exception:
             logging.error('Error in content validation', exc_info=True)
             return -1
 
-    def _generate_order(self, shopid, shortlink_id, price):
+    def _generate_order(self, shopid, shortlink_id, amount):
         user = self.get_cookie('uuid', None)
         if user is None:        # set token only when needed
             user = str(uuid.uuid1())
@@ -206,11 +209,11 @@ class ProductHandler(tornado.web.RequestHandler):
         payment_cookie = self.get_cookie(unique_order, '')
         if not payment_cookie:
             now = int(time.time())
-            shortlinks[unique_order] = {'shopid': shopid, 'price': price, 'issued': now}
+            shortlinks[unique_order] = {'shopid': shopid, 'amount': amount, 'issued': now}
             self.set_cookie(unique_order, str(now), expires=now + ORDER_EXPIRES_SEC)
 
         order = {'id': unique_order,
-                'price': price,
+                'amount': amount,
                 'poll_uri': '%s/api/poll/%s/' % (base_url(self.request), unique_order),
                 'qrcode_url': tornado.options.options.mcash_qrcode % (shortlink_id, unique_order)}
         return json.dumps(order)
