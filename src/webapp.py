@@ -155,7 +155,7 @@ class CallbackHandler(tornado.web.RequestHandler):
                 transactions[unique_order]['status'] = 1
                 logging.info('payment request succeded: %s %s' % (unique_order, transaction_id))
 
-                r2 = requests.put('%s%s/' % transaction_id, data={'action': 'capture'}, headers=mcash_headers())
+                r2 = requests.put('%s%s/' % (uri, transaction_id), data={'action': 'capture'}, headers=mcash_headers())
                 if r2.ok:
                     transactions[unique_order]['status'] = 4
                     logging.info('payment capture succeded: %s %s' % (unique_order, transaction_id))
