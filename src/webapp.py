@@ -127,6 +127,7 @@ class CallbackHandler(tornado.web.RequestHandler):
     def post(self):
         logging.info('Callback arrived: %s' % self.request.body)
         try:
+            customer = json.loads(self.request.body)['object']['id']
             unique_order = json.loads(self.request.body)['object']['argstring']
         except ValueError as error:
             logging.error('Unexpected JSON in callback %s' % self.request.body)
@@ -140,7 +141,7 @@ class CallbackHandler(tornado.web.RequestHandler):
             data['currency'] = O.mcash_currency
             #data['callback_uri'] = '%sapi/callback/payment/%s' % (base_url(self.request), unique_order)
             data['allow_credit'] = O.allow_credit
-            data['customer'] = transactions[unique_order]['user']
+            data['customer'] = customer
             data['pos_id'] = transactions[unique_order]['shopid']
             data['pos_tid'] = unique_order
             data['action'] = 'auth'
