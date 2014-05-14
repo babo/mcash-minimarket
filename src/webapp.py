@@ -9,6 +9,8 @@ import uuid
 import time
 import md5
 import urlparse
+import logging
+
 import requests
 
 import tornado.ioloop
@@ -30,9 +32,53 @@ def mcash_headers():
     headers['X-Testbed-Token'] = O.mcash_token
     return headers
 
+class MessageBuffer(object):
+    def __init__(self):
+        self.waiters = {}
+        self.cache = []
+        self.cache_size = 200
+
+    def register_callback(self, unique_order, callback):
+        if unique_order not in self.waiters:
+            self.waiters[unique_order] = set([callback])
+        else:
+            self.waiters[unique_order].add(callback)
+
+    def cancel_wait(self, unique_order, callback):
+        if unique_order in self.waiters:
+            self.waiters[unique_order].remove(callback)
+            if not self.waiters[unique_order]:
+                del self.waiters[unique_order]
+
+    def payment_arrived(self, order_id):
+        if order_id in self.waiters:
+            for cb in self.waiters[order_id]:
+                try:
+                    cb()
+                except Exception:
+                    logging.error('Error in waiter callback', exc_info=True)
+            del self.waiters[order_id]
+
+global_message_buffer = MessageBuffer()
+
+class PollHandler(tornado.web.RequestHandler):
+    @tornado.web.asynchronous
+    def post(self, unique_order):
+        self.unique_order = unique_order
+        global_message_buffer.register_callback(unique_order, self.callback)
+
+    def callback(self, result):
+        # client connection is still open
+        if not self.request.connection.stream.closed():
+            self.finish(result)
+
+    def on_connection_close(self):
+        if hasattr(self, 'unique_order'):
+            global_message_buffer.cancel_wait(self.unique_order, self.callback)
+
 class CallbackHandler(tornado.web.RequestHandler):
     def post(self, unique_order):
-        print 'Callback', unique_order
+        logging.info('Callback arrived: %s' unique_order)
         if unique_order in shortlinks:
             price = shortlinks[unique_order]['price']
             del shortlinks[unique_order]
@@ -147,6 +193,7 @@ def main():
 
     handlers = [
         (r'/api/products/([^/]+)/', ProductHandler),
+        (r'/api/poll/([^/]{16,32})/', PollHandler),
         (r'/api/callback/([^/]{16,32})/', CallbackHandler)
     ]
     settings = {
