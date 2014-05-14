@@ -21,6 +21,15 @@ ORDER_EXPIRES_SEC = 600
 shops = {}
 shortlinks = {}
 
+def mcash_headers():
+    O = tornado.options.options
+    headers = {}
+    headers['X-Mcash-Merchant'] = O.mcash_merchant
+    headers['X-Mcash-User'] = O.mcash_user
+    headers['Authorization'] = O.mcash_secret
+    headers['X-Testbed-Token'] = O.mcash_token
+    return headers
+
 class CallbackHandler(tornado.web.RequestHandler):
     def post(self, unique_order):
         print 'Callback', unique_order
@@ -99,17 +108,11 @@ class ProductHandler(tornado.web.RequestHandler):
         unique_order = md5.new(self.request.body).hexdigest()
         payment_cookie = self.get_cookie(unique_order, '')
         if not payment_cookie:
-            headers = {}
             O = tornado.options.options
-            headers['X-Mcash-Merchant'] = O.mcash_merchant
-            headers['X-Mcash-User'] = O.mcash_user
-            headers['Authorization'] = O.mcash_secret
-            headers['X-Testbed-Token'] = O.mcash_token
-
             base = urlparse.urlparse(O.mcash_callback_uri or self.request.full_url())
             uri = '%s://%s/%s/%s/' % (base.scheme, base.netloc, 'api/callback', unique_order)
             data = {'callback_uri': uri}
-            r = requests.post(O.mcash_endpoint + 'shortlink/', headers=headers, data=data)
+            r = requests.post(O.mcash_endpoint + 'shortlink/', headers=mcash_headers(), data=data)
             if r.ok:
                 now = int(time.time())
                 shortlinks[unique_order] = {'id': r.json()['id'], 'price': price, 'issued': now}
