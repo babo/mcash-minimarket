@@ -164,10 +164,10 @@ class CallbackHandler(tornado.web.RequestHandler):
                 else:
                     # TODO check if the error is recoverable
                     transactions[unique_order]['status'] = 3
-                    logging.error('payment capture failed: %s %s %s %s' % (r2.status_code, r2.reason, unique_order, transaction_id))
+                    logging.error('payment capture failed: %s %s %s %s' % (r2.status_code, r2.content, unique_order, transaction_id))
                     raise tornado.web.HTTPError(500)
             else:
-                logging.error('payment request failed: %s %s %s' % (r1.status_code, r1.reason, data))
+                logging.error('payment request failed: %s %s %s %s %s' % (r1.status_code, r1.content, r1.url, mcash_headers(), data))
                 raise tornado.web.HTTPError(500)
 
 class ProductHandler(tornado.web.RequestHandler):
