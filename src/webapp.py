@@ -104,13 +104,20 @@ class PollHandler(tornado.web.RequestHandler):
 
     @tornado.web.asynchronous
     def post(self, unique_order):
+        if unique_order not in transactions:
+            logging.info('Unknown unique_order polled')
+            raise tornado.web.HTTPError(404)
         self.unique_order = unique_order
-        global_message_buffer.register_callback(unique_order, self.callback)
+        if transactions[unique_order]['status'] > 2:
+            self.callback()
+        else:
+            global_message_buffer.register_callback(unique_order, self.callback)
 
-    def callback(self, result):
+    def callback(self):
         # client connection is still open
         if not self.request.connection.stream.closed():
-            self.finish(result)
+            result = {'result': transactions[self.unique_order]['status'] == 4}
+            self.finish(json.dumps(result))
 
     def on_connection_close(self):
         if hasattr(self, 'unique_order'):
@@ -150,6 +157,7 @@ class CallbackHandler(tornado.web.RequestHandler):
                         self.write('OK')
                     else:
                         transactions[unique_order]['status'] = 3
+                        global_message_buffer.payment_arrived(transaction_id)
                         logging.error('payment capture failed: %s %s %s %s' % (r2.status_code, r2.reason, unique_order, transaction_id))
                         raise tornado.web.HTTPError(500)
                 else:
