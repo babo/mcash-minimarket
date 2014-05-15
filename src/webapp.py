@@ -4,19 +4,19 @@
     Our main persona is a friendly pizza shop at the corner.
 """
 import functools
-import os
 import json
-import uuid
-import time
-import md5
-import urlparse
 import logging
+import md5
+import os
+import time
+import urlparse
+import uuid
 
 import requests
 
 import tornado.ioloop
-import tornado.web
 import tornado.options
+import tornado.web
 
 JSON_CONTENT = 'application/vnd.api+json'
 ORDER_EXPIRES_SEC = 600
