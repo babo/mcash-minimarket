@@ -143,7 +143,7 @@ class PaymentHandler(tornado.web.RequestHandler):
                 response = requests.put(uri, data={'action': 'capture'}, headers=mcash_headers())
                 if response.ok:
                     transactions[unique_order]['status'] = 4
-                    global_message_buffer.payment_arrived(transaction_id)
+                    global_message_buffer.payment_arrived(unique_order)
                     logging.info('payment capture succeded: %s %s' % (unique_order, transaction_id))
                 else:
                     # TODO check if the error is recoverable
