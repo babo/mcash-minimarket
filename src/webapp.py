@@ -86,14 +86,14 @@ class MessageBuffer(object):
             if not self.waiters[unique_order]:
                 del self.waiters[unique_order]
 
-    def payment_arrived(self, order_id):
-        if order_id in self.waiters:
-            for cb in self.waiters[order_id]:
+    def payment_arrived(self, unique_order):
+        if unique_order in self.waiters:
+            for cb in self.waiters[unique_order]:
                 try:
                     cb()
                 except Exception:
                     logging.error('Error in waiter callback', exc_info=True)
-            del self.waiters[order_id]
+            del self.waiters[unique_order]
 
 global_message_buffer = MessageBuffer()
 
