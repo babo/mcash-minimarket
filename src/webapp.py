@@ -102,6 +102,9 @@ class PollHandler(tornado.web.RequestHandler):
         self.unique_order = None
         super(PollHandler, self).__init__(*args, **kwargs)
 
+    def get(self, unique_order):
+        raise tornado.web.HTTPError(405)
+
     @tornado.web.asynchronous
     def post(self, unique_order):
         if unique_order not in transactions:
