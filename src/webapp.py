@@ -215,8 +215,7 @@ class ProductHandler(tornado.web.RequestHandler):
                 }
             shops[shopid] = json.dumps(inventory)
         self.set_header('Content-Type', JSON_CONTENT)
-        if not self.get_cookie('uuid'):
-            self.set_cookie('uuid', str(uuid.uuid1()))
+        self.set_cookie('uuid', str(uuid.uuid1()))
         self.write(shops[shopid])
 
     def post(self, shopid):
