@@ -132,27 +132,31 @@ class PaymentHandler(tornado.web.RequestHandler):
         logging.info('Payment callback arrived: %s' % self.request.body)
         try:
             body = json.loads(self.request.body)
-            transaction_id = body['object']['tid']
-            status = body['object']['status']
         except ValueError as error:
             logging.error('Unexpected JSON in callback %s %s' % (error, self.request.body))
             raise tornado.web.HTTPError(400)
 
-        if unique_order in transactions:
-            if status != 'fail':
-                uri = '%spayment_request/%s/' % (tornado.options.options.mcash_endpoint, transaction_id)
-                response = requests.put(uri, data={'action': 'capture'}, headers=mcash_headers())
-                if response.ok:
-                    transactions[unique_order]['status'] = 4
-                    global_message_buffer.payment_arrived(unique_order)
-                    logging.info('payment capture succeded: %s %s' % (unique_order, transaction_id))
+        if 'object' in body:
+            transaction_id = body['object']['tid']
+            status = body['object']['status']
+
+            if unique_order in transactions:
+                if status != 'fail':
+                    uri = '%spayment_request/%s/' % (tornado.options.options.mcash_endpoint, transaction_id)
+                    response = requests.put(uri, data={'action': 'capture'}, headers=mcash_headers())
+                    if response.ok:
+                        transactions[unique_order]['status'] = 4
+                        global_message_buffer.payment_arrived(unique_order)
+                        logging.info('payment capture succeded: %s %s' % (unique_order, transaction_id))
+                    else:
+                        # TODO check if the error is recoverable
+                        logging.error('payment capture failed: %s %s %s %s' % (response.status_code, response.content, unique_order, transaction_id))
+                        raise tornado.web.HTTPError(500)
                 else:
-                    # TODO check if the error is recoverable
-                    logging.error('payment capture failed: %s %s %s %s' % (response.status_code, response.content, unique_order, transaction_id))
-                    raise tornado.web.HTTPError(500)
-            else:
-                transactions[unique_order]['status'] = 3
-                logging.info('payment rejected %s %s' % (unique_order, transaction_id))
+                    transactions[unique_order]['status'] = 3
+                    logging.info('payment rejected %s %s' % (unique_order, transaction_id))
+        else:
+            logging.info('Event %s %s' % (body['event'], body['id']))
         self.write('OK')
 
 class ShortlinkHandler(tornado.web.RequestHandler):
