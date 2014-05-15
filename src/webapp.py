@@ -118,6 +118,7 @@ class PollHandler(tornado.web.RequestHandler):
 
     def callback(self):
         # client connection is still open
+        logging.info('Poll callback for %s' % self.unique_order)
         if not self.request.connection.stream.closed():
             result = {'result': transactions[self.unique_order]['status'] == 4}
             self.finish(json.dumps(result))
