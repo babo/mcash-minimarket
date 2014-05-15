@@ -143,8 +143,8 @@ class PaymentHandler(tornado.web.RequestHandler):
                 response = requests.put(uri, data={'action': 'capture'}, headers=mcash_headers())
                 if response.ok:
                     transactions[unique_order]['status'] = 4
-                    logging.info('payment capture succeded: %s %s' % (unique_order, transaction_id))
                     global_message_buffer.payment_arrived(transaction_id)
+                    logging.info('payment capture succeded: %s %s' % (unique_order, transaction_id))
                 else:
                     # TODO check if the error is recoverable
                     logging.error('payment capture failed: %s %s %s %s' % (response.status_code, response.content, unique_order, transaction_id))
@@ -152,6 +152,7 @@ class PaymentHandler(tornado.web.RequestHandler):
             else:
                 transactions[unique_order]['status'] = 3
                 logging.info('payment rejected %s %s' % (unique_order, transaction_id))
+        self.write('OK')
 
 class ShortlinkHandler(tornado.web.RequestHandler):
     def post(self):
@@ -179,15 +180,14 @@ class ShortlinkHandler(tornado.web.RequestHandler):
 
             uri = '%spayment_request/' % O.mcash_endpoint
             response = requests.post(uri, headers=mcash_headers(), data=data)
-            if response.ok:
-                transaction_id = response.json()['id']
-                transactions[unique_order]['transaction_id'] = transaction_id
-                transactions[unique_order]['status'] = 1
-                logging.info('payment authorization request succeded: %s %s %s' % (unique_order, transaction_id, data['callback_uri']))
-                self.write('OK')
-            else:
+            if not response.ok:
                 logging.error('payment authorization request failed: %s %s %s %s %s' % (response.status_code, response.content, response.url, mcash_headers(), data))
                 raise tornado.web.HTTPError(500)
+            transaction_id = response.json()['id']
+            transactions[unique_order]['transaction_id'] = transaction_id
+            transactions[unique_order]['status'] = 1
+            logging.info('payment authorization request succeded: %s %s %s' % (unique_order, transaction_id, data['callback_uri']))
+        self.write('OK')
 
 class ProductHandler(tornado.web.RequestHandler):
     def get(self, shopid):
