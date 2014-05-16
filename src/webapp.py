@@ -313,6 +313,11 @@ class ProductHandler(tornado.web.RequestHandler):
     def _check_header(self, key, value=None):
         return key in self.request.headers and self.request.headers.get(key).lower() == (value or JSON_CONTENT).lower()
 
+class NCStaticFileHandler(tornado.web.StaticFileHandler):
+    def set_extra_headers(self, path):
+        # Disable cache
+        self.set_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+
 def describe_config():
     tornado.options.define('cookie_secret', default='sssecccc', help='Change this to a real secret')
     tornado.options.define('favicon', default='static/favicon.ico', help='Path to favicon.ico')
