@@ -238,32 +238,28 @@ class ProductHandler(tornado.web.RequestHandler):
         self.set_header('Content-Type', JSON_CONTENT)
         self.write(get_shop_selection(shopid, category, pid))
 
-    def post(self, shopid):
+    def post(self, shopid, category):
         if shopid not in shops:
             raise tornado.web.HTTPError(404)
-        if self._check_header('Content-Type') and self._check_header('Accept'):
-            self.set_header('Content-Type', JSON_CONTENT)
-            order = None
-            try:
-                amount = self._validate_content(shopid)
-                if amount > 0:
-                    shortlink_id = register_shortlink(self.request)
-                    order = self._generate_order(shopid, shortlink_id, amount)
-            except ValueError:
-                logging.error('Error in shortlink generation', exc_info=True)
+        self.set_header('Content-Type', JSON_CONTENT)
+        order = None
+        try:
+            amount = self._validate_content(shopid)
+            if amount > 0:
+                shortlink_id = register_shortlink(self.request)
+                order = self._generate_order(shopid, shortlink_id, amount)
+        except ValueError:
+            logging.error('Error in shortlink generation', exc_info=True)
 
-            if not order:
-                raise tornado.web.HTTPError(400)
+        if not order:
+            raise tornado.web.HTTPError(400)
 
-            self.write(order)
-        else:
-            logging.info('POST with invalid content')
-            raise tornado.web.HTTPError(406)
+        self.write(order)
 
     def _validate_content(self, shopid):
         content = json.loads(self.request.body)
         try:
-            inventory = json.loads(shops[shopid])
+            inventory = shops[shopid]
             pizzas = dict([(x['id'], x) for x in inventory['pizzas']])
             sizes = dict([(x['id'], x) for x in inventory['sizes']])
             toppings = dict([(x['id'], x) for x in inventory['toppings']])
@@ -343,12 +339,6 @@ def main():
     if os.path.exists(options.config):
         tornado.options.parse_config_file(options.config)
 
-    handlers = [
-        (r'/api/products/([^/]+)/', ProductHandler),
-        (r'/api/poll/([^/]{16,32})/', PollHandler),
-        (r'/api/callback/shortlink/', ShortlinkHandler),
-        (r'/api/callback/payment/([^/]{16,32})/', PaymentHandler)
-    ]
     settings = {
         'static_path': os.path.join(os.path.dirname(__file__), '..', options.static_path),
         'cookie_secret': options.cookie_secret,
@@ -356,6 +346,14 @@ def main():
         'xsrf_cookies': False,
         'autoreload': True
     }
+    handlers = [
+        (r'/api/products/([^/]+)/(pizzas|sizes|toppings)/?', ProductHandler),
+        (r'/api/products/([^/]+)/(pizzas|sizes|toppings)/(\w+)/?', ProductHandler),
+        (r'/api/poll/([^/]{16,32})/', PollHandler),
+        (r'/api/callback/shortlink/', ShortlinkHandler),
+        (r'/api/callback/payment/([^/]{16,32})/', PaymentHandler),
+        (r'/(.*)', NCStaticFileHandler, {'path': settings['static_path']})
+    ]
     application = tornado.web.Application(handlers, **settings)
     application.listen(options.port)
     tornado.ioloop.IOLoop.instance().start()
