@@ -85,27 +85,27 @@ def generate_inventory(shopid):
     if shopid not in shops:
         selection = ['Roma', 'Milan', 'Bologna', 'Parma', 'Venice', 'Pomodoro',\
                     'Quattro Stagioni', 'Vegan', 'of %s' % shopid.capitalize()]
-        n_pizzas = random.randint(4, 9)
-        shops[shopid] = {'pizzas': []}
-        shops[shopid]['toppings'] = [{'id': 1, 'name': 'garlic', 'price': 1},\
-                                    {'id': 2, 'name': 'extra cheese', 'price': 5},\
-                                    {'id': 3, 'name': 'pepperoni', 'price': 2}]
-        shops[shopid]['sizes'] = [{'id': 28, 'name': '28 cm', 'price': -5},\
-                                {'id': 32, 'name': '32 cm', 'price': 0},\
-                                {'id': 36, 'name': '36 cm', 'price': 5}]
+        shops[shopid] = {'pizzas': {}, 'toppings': {}, 'sizes': {}}
+
+        for (pid, ingred) in enumerate(['garlic', 'extra cheese', 'pepperoni'], 1):
+            shops[shopid]['toppings'][pid] = {'id': pid, 'name': ingred, 'price': random.randrange(2, 12)}
+
+        for (pid, size) in enumerate([28, 32, 36], 0):
+            shops[shopid]['sizes'][size] = {'id': size, 'name': '%s cm' % size, 'price': pid * 5}
 
         for (pid, pizza) in enumerate(random.sample(selection, random.randrange(4, len(selection))), 1):
             image = 'images/%s/%s.jpg' % (shopid, pizza.lower().replace(' ', '_'))
-            shops[shopid]['pizzas'].append({'id': pid, 'name': 'Pizza %s' % pizza,\
-                                            'image': image, 'price': random.randrange(35, 55)})
+            shops[shopid]['pizzas'][pid] = {'id': pid, 'name': 'Pizza %s' % pizza,\
+                                            'image': image, 'price': random.randrange(35, 55)}
 
 @memoize
 def get_shop_selection(shopid, category, pid=None):
     if shopid not in shops:
         generate_inventory(shopid)
-    content = {category[:-1]: \
-            shops[shopid][category] if pid is None else shops[shopid][category][0]}
-    return json.dumps(content)
+
+    content = shops[shopid][category]
+    # ember-data requires {'pizza': {'id': ...}} or {'pizza': [{'id': 1, ..}, ...]}
+    return json.dumps({category[:-1]: content[pid] if pid is not None and pid in content else content.values()})
 
 class MessageBuffer(object):
     def __init__(self):
@@ -204,7 +204,7 @@ class ShortlinkHandler(tornado.web.RequestHandler):
         try:
             customer = json.loads(self.request.body)['object']['id']
             unique_order = json.loads(self.request.body)['object']['argstring']
-        except ValueError as error:
+        except ValueError:
             logging.error('Unexpected JSON in callback %s' % self.request.body)
             raise tornado.web.HTTPError(400)
 
@@ -260,8 +260,6 @@ class ProductHandler(tornado.web.RequestHandler):
         content = json.loads(self.request.body)
         try:
             inventory = shops[shopid]
-            pizzas = dict([(x['id'], x) for x in inventory['pizzas']])
-            sizes = dict([(x['id'], x) for x in inventory['sizes']])
             toppings = dict([(x['id'], x) for x in inventory['toppings']])
 
             if not isinstance(content, list):
@@ -270,13 +268,20 @@ class ProductHandler(tornado.web.RequestHandler):
             for piece in content:
                 if not isinstance(piece, dict):
                     return -1
-                if piece['id'] not in pizzas or piece['size'] not in sizes:
+                if piece['id'] not in inventory['pizzas']:
+                    logging.info('Invalid pizza id: %s %s' % (piece['id'], shopid))
                     return -1
-                amount += pizzas[piece['id']]['price']
-                amount += sizes[piece['size']]['price']
+                if 'size' in piece:
+                    if piece['size'] in inventory['sizes']:
+                        amount += inventory['sizes'][piece['size']]['price']
+                    else:
+                        logging.info('Invalid size: %s %s' % (piece['size'], shopid))
                 if 'toppings' in piece:
                     for t in piece['toppings']:
-                        amount += toppings[t['id']]['price']
+                        if t in inventory['toppings']:
+                            amount += inventory['toppings'][t['id']]['price']
+                        else:
+                            logging.info('Invalid topping: %s %s' % (t, shopid))
             return amount
         except Exception:
             logging.error('Error in content validation', exc_info=True)
