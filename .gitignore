@@ -54,3 +54,7 @@ docs/_build/
 
 # OS X
 .DS_Store
+
+# JS
+node_modules/
+bower_components/
