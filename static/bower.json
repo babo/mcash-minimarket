@@ -1,0 +1,25 @@
+{
+  "name": "static",
+  "version": "0.0.1",
+  "homepage": "https://github.com/babo/mcash-minimarket",
+  "authors": [
+    "Attila Babo <attila.babo@gmail.com>"
+  ],
+  "description": "Mockup for a pizza chain demo",
+  "main": "lagano.html",
+  "license": "MIT",
+  "private": true,
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "jquery": "~2.1.1",
+    "handlebars": "~1.3.0",
+    "ember": "~1.5.1",
+    "ember-data": "~1.0.0-beta.7"
+  }
+}

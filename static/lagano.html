@@ -1,0 +1,69 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Pizza Lagano</title>
+    <link href="//netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+  </head>
+  <body>
+    <script type="text/x-handlebars" data-template-name="pizzas/index">
+        <ul id="pizza-list">
+        {{#each itemController="pizza"}}
+            <li {{bind-attr class="isSelected:selected"}}>
+                {{input type="checkbox" checked=isSelected class="toggle"}}
+                <label class="pizza-name">{{name}}</label>
+                <label>{{price}} NOK</label>
+            </li>
+        {{/each}}
+        </ul>
+    </script>
+    <script type="text/x-handlebars" data-template-name="pizzas/order">
+        <h1>done</h1>
+    </script>
+    <script type="text/x-handlebars" data-template-name="pizzas">
+        <section id="pizzaapp">
+        <header id="header">
+            <h1>tasty pizzas</h1>
+        </header>
+
+        <section id="order">
+            <h3 {{action 'payment'}} id="toggle-all" class="btn btn-primary" {{bind-attr class="hasSelected:disabled"}}>order</h3><br>
+            <div id="qrcode"></div>
+        </section>
+
+        <section id="main">
+            {{outlet}}
+        </section>
+
+        <footer id="footer">
+            <span id="pizza-count">
+            <strong>{{selected}}</strong> {{inflection}} selected
+            </span>
+            <ul id="filters">
+            <li>
+                {{#link-to "pizzas.index" activeClass="selected"}}All{{/link-to}}
+            </li>
+            <li>
+                {{#link-to "pizzas.selected" activeClass="selected"}}Selected only{{/link-to}}
+            </li>
+            </ul>
+
+            <button id="clear-selected">
+            Clear selected ({{selected}})
+            </button>
+        </footer>
+        </section>
+
+    </script>
+    <script src="bower_components/jquery/dist/jquery.js"></script>
+    <script src="bower_components/handlebars/handlebars.js"></script>
+    <script src="bower_components/ember/ember.js"></script>
+    <script src="bower_components/ember-data/ember-data.js"></script>
+    <script src="js/application.js"></script>
+    <script src="js/router.js"></script>
+    <script src="js/models/pizza.js"></script>
+    <script src="js/controllers/pizza_controller.js"></script>
+    <script src="js/controllers/pizzas_controller.js"></script>
+  </body>
+</html>
