@@ -302,9 +302,9 @@ class ProductHandler(tornado.web.RequestHandler):
             transactions[unique_order] = {'shopid': shopid, 'amount': amount, 'issued': now, 'user': user, 'status': 1}
             self.set_cookie(unique_order, str(now), expires=now + ORDER_EXPIRES_SEC)
 
-        order = {'id': unique_order,
-                'amount': amount,
-                'poll_uri': '%s/api/poll/%s/' % (base_url(self.request), unique_order),
+        order = {'id': unique_order, \
+                'amount': amount, \
+                'poll_uri': '%s/api/poll/%s/' % (base_url(self.request), unique_order), \
                 'qrcode_url': tornado.options.options.mcash_qrcode % (shortlink_id, unique_order)}
         return json.dumps(order)
 
