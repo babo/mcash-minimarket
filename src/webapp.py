@@ -8,6 +8,7 @@ import json
 import logging
 import md5
 import os
+import random
 import time
 import urlparse
 import uuid
@@ -79,6 +80,32 @@ def register_shortlink(request):
         return shortlink_id
     else:
         logging.error('Error creating a shortlink %s %s %s %s' % (r.status_code, r.url, r.headers, data), exc_info=True)
+
+def generate_inventory(shopid):
+    if shopid not in shops:
+        selection = ['Roma', 'Milan', 'Bologna', 'Parma', 'Venice', 'Pomodoro',\
+                    'Quattro Stagioni', 'Vegan', 'of %s' % shopid.capitalize()]
+        n_pizzas = random.randint(4, 9)
+        shops[shopid] = {'pizzas': []}
+        shops[shopid]['toppings'] = [{'id': 1, 'name': 'garlic', 'price': 1},\
+                                    {'id': 2, 'name': 'extra cheese', 'price': 5},\
+                                    {'id': 3, 'name': 'pepperoni', 'price': 2}]
+        shops[shopid]['sizes'] = [{'id': 28, 'name': '28 cm', 'price': -5},\
+                                {'id': 32, 'name': '32 cm', 'price': 0},\
+                                {'id': 36, 'name': '36 cm', 'price': 5}]
+
+        for (pid, pizza) in enumerate(random.sample(selection, random.randrange(4, len(selection))), 1):
+            image = 'images/%s/%s.jpg' % (shopid, pizza.lower().replace(' ', '_'))
+            shops[shopid]['pizzas'].append({'id': pid, 'name': 'Pizza %s' % pizza,\
+                                            'image': image, 'price': random.randrange(35, 55)})
+
+@memoize
+def get_shop_selection(shopid, category, pid=None):
+    if shopid not in shops:
+        generate_inventory(shopid)
+    content = {category[:-1]: \
+            shops[shopid][category] if pid is None else shops[shopid][category][0]}
+    return json.dumps(content)
 
 class MessageBuffer(object):
     def __init__(self):
@@ -207,28 +234,9 @@ class ShortlinkHandler(tornado.web.RequestHandler):
         self.write('OK')
 
 class ProductHandler(tornado.web.RequestHandler):
-    def get(self, shopid):
-        if shopid not in shops:
-            inventory = {'pizzas':
-                    [   {'id': 1, 'name': 'Pizza lagano', 'price': 45},
-                        {'id': 2, 'name': 'Pizza vegan', 'price': 50},
-                        {'id': 3, 'name': 'Pizza of the house', 'price': 55},
-                    ],
-                    'toppings': [
-                        {'id': 1, 'name': 'garlic', 'price': 1},
-                        {'id': 2, 'name': 'extra cheese', 'price': 5},
-                        {'id': 3, 'name': 'pepperoni', 'price': 2}
-                     ],
-                    'sizes': [
-                        {'id': 28, 'name': '28 cm', 'price': -5},
-                        {'id': 32, 'name': '32 cm', 'price': 0},
-                        {'id': 36, 'name': '36 cm', 'price': 5}
-                    ]
-                }
-            shops[shopid] = json.dumps(inventory)
+    def get(self, shopid, category, pid=None):
         self.set_header('Content-Type', JSON_CONTENT)
-        self.set_cookie('uuid', str(uuid.uuid1()))
-        self.write(shops[shopid])
+        self.write(get_shop_selection(shopid, category, pid))
 
     def post(self, shopid):
         if shopid not in shops:
