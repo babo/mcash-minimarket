@@ -38,6 +38,18 @@ def memoize_singleton(func):
 
     return memoizer
 
+def memoize(func):
+    cache = {}
+
+    @functools.wraps(func)
+    def memoizer(*args, **kwargs):
+        key = '|'.join(map(str, args) + map(str, kwargs))
+        if key not in cache:
+            cache[key] = func(*args, **kwargs)
+        return cache[key]
+
+    return memoizer
+
 @memoize_singleton
 def mcash_headers():
     O = tornado.options.options
