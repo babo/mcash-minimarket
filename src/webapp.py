@@ -183,17 +183,17 @@ class PaymentHandler(tornado.web.RequestHandler):
                 if status != 'fail':
                     uri = '%spayment_request/%s/' % (tornado.options.options.mcash_endpoint, transaction_id)
                     response = requests.put(uri, data={'action': 'capture'}, headers=mcash_headers())
-                    if response.ok:
-                        transactions[unique_order]['status'] = 4
-                        global_message_buffer.payment_arrived(unique_order)
-                        logging.info('payment capture succeded: %s %s' % (unique_order, transaction_id))
-                    else:
+                    if not response.ok:
                         # TODO check if the error is recoverable
                         logging.error('payment capture failed: %s %s %s %s' % (response.status_code, response.content, unique_order, transaction_id))
                         raise tornado.web.HTTPError(500)
+                    transactions[unique_order]['status'] = 4
+                    logging.info('payment capture succeded: %s %s' % (unique_order, transaction_id))
                 else:
                     transactions[unique_order]['status'] = 3
                     logging.info('payment rejected %s %s' % (unique_order, transaction_id))
+                global_message_buffer.payment_arrived(unique_order)
+                self.clear_cookie('uuid')
         else:
             logging.info('Event %s %s' % (body['event'], body['id']))
         self.write('OK')
@@ -287,18 +287,20 @@ class ProductHandler(tornado.web.RequestHandler):
             return -1
 
     def _generate_order(self, shopid, shortlink_id, amount):
+        now = int(time.time())
         user = self.get_cookie('uuid', None)
-        if user is None:        # set token only when needed
+        if not user:        # set token only when needed
             user = str(uuid.uuid1())
-            self.set_cookie('uuid', user)
+            self.set_cookie('uuid', user, expires=now + 30)
         h = md5.new(user)
         h.update(shopid)
         h.update(self.request.body)
         unique_order = h.hexdigest()
 
+        logging.info('User uuid for order: %s %s' % (unique_order, user))
+
         payment_cookie = self.get_cookie(unique_order, '')
         if not payment_cookie:
-            now = int(time.time())
             transactions[unique_order] = {'shopid': shopid, 'amount': amount, 'issued': now, 'user': user, 'status': 1}
             self.set_cookie(unique_order, str(now), expires=now + ORDER_EXPIRES_SEC)
 
